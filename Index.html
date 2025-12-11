@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>French Uno - Learn Numbers!</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+  body {
+    font-family: 'Segoe UI', sans-serif;
+    background: linear-gradient(135deg, #1e5799, #2989d8);
+    color: white;
+    text-align: center;
+    margin: 0;
+    padding: 20px;
+  }
+  h1 { font-size: 2.5em; margin: 10px; text-shadow: 2px 2px 5px rgba(0,0,0,0.5); }
+  .game {
+    max-width: 900px;
+    margin: 20px auto;
+    background: rgba(0,0,0,0.3);
+    padding: 20px;
+    border-radius: 20px;
+  }
+  .deck, .discard { display: inline-block; margin: 20px; }
+  .card {
+    width: 90px; height: 130px;
+    display: inline-block;
+    margin: 5px;
+    border-radius: 12px;
+    line-height: 130px;
+    font-size: 20px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: all 0.2s;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
+  }
+  .card:hover { transform: scale(1.1); }
+  .red { background: #e74c3c; }
+  .blue { background: #3498db; }
+  .green { background: #2ecc71; }
+  .yellow { background: #f1c40f; color: black; }
+  .wild { background: linear-gradient(45deg, #e74c3c, #3498db, #2ecc71, #f1c40f); color: white; }
+  .playable { border: 4px solid gold; }
+  #player-hand .card { margin: 8px; }
+  button {
+    padding: 12px 24px;
+    font-size: 18px;
+    margin: 10px;
+    border: none;
+    border-radius: 8px;
+    background: #fff;
+    color: #2989d8;
+    cursor: pointer;
+  }
+  button:hover { background: #ddd; }
+  .message { font-size: 1.5em; margin: 20px; min-height: 50px; }
+  .uno { background: gold !important; color: black !important; animation: pulse 1s infinite; }
+  @keyframes pulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.2); } }
+</style>
+</head>
+<body>
+<h1>🇫🇷 French Uno - Numbers Edition! 🇫🇷</h1>
+<div class="game">
+  <p>Match color or number • Numbers are in French (English below)</p>
+  
+  <div class="deck">
+    <div class="card" id="deck" onclick="drawCard()">🂠 Deck<br><small>(Click to draw)</small></div>
+    <div class="card" id="discard"></div>
+  </div>
+
+  <div class="message" id="message">Your turn! Click a card to play.</div>
+
+  <div id="computer-hand">🤖 Computer: <span id="computer-count">7</span> cards</div>
+  <div style="height:20px"></div>
+
+  <div id="player-hand"></div>
+
+  <button onclick="sayUno()" id="uno-btn" style="display:none">Call UNO!</button>
+  <button onclick="drawCard()">Draw Card</button>
+</div>
+
+<script>
+// French numbers 0-9
+const frenchNumbers = ["zéro","un","deux","trois","quatre","cinq","six","sept","huit","neuf"];
+const colors = ["red","blue","green","yellow"];
+let deck = [];
+let discard = [];
+let playerHand = [];
+let currentColor = "red";
+let currentNumber = 5;
+let turn = "player"; // player or computer
+let unoCalled = false;
+
+// Create deck (only numbers 0-9, 2 of each color except 0)
+function createDeck() {
+  deck = [];
+  for (let c of colors) {
+    for (let n = 0; n <= 9; n++) {
+      deck.push({color: c, number: n});
+      if (n > 0) deck.push({color: c, number: n}); // two of each except 0
+    }
+  }
+  // Add 4 Wild cards
+  for (let i = 0; i < 4; i++) deck.push({color: "wild", number: null});
+  shuffle(deck);
+}
+
+// Shuffle array
+function shuffle(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+}
+
+// Start game
+function startGame() {
+  createDeck();
+  playerHand = [];
+  for (let i = 0; i < 7; i++) {
+    playerHand.push(deck.pop());
+    playerHand.push(deck.pop()); // Computer gets 7 too
+  }
+  let first = deck.pop();
+  while (first.color === "wild") { // No wild as first card
+    deck.push(first);
+    shuffle(deck);
+    first = deck.pop();
+  }
+  discard = [first];
+  updateDiscard();
+  renderPlayerHand();
+  updateComputerCount();
+}
+
+function updateDiscard() {
+  const card = discard[discard.length - 1];
+  const el = document.getElementById("discard");
+  if (card.color === "wild") {
+    el.className = "card wild";
+    el.innerHTML = "WILD<br><small>Any Color</small>";
+  } else {
+    el.className = `card ${card.color}`;
+    el.innerHTML = `${frenchNumbers[card.number]}<br><small>${card.number}</small>`;
+  }
+  currentColor = card.color === "wild" ? currentColor : card.color;
+  currentNumber = card.number;
+}
+
+function renderPlayerHand() {
+  const hand = document.getElementById("player-hand");
+  hand.innerHTML = "";
+  playerHand.forEach((card, i) => {
+    const el = document.createElement("div");
+    el.className = "card " + card.color;
+    if (canPlay(card)) el.classList.add("playable");
+    if (card.color === "wild") {
+      el.innerHTML = "WILD<br><small>Any Color</small>";
+    } else {
+      el.innerHTML = `${frenchNumbers[card.number]}<br><small>${card.number}</small>`;
+    }
+    el.onclick = () => playCard(i);
+    hand.appendChild(el);
+  });
+  document.getElementById("uno-btn").style.display = playerHand.length === 2 ? "inline-block" : "none";
+}
+
+function canPlay(card) {
+  if (card.color === "wild") return true;
+  if (card.color === currentColor) return true;
+  if (card.number === currentNumber) return true;
+  return false;
+}
+
+function playCard(index) {
+  if (turn !== "player") return;
+  const card = playerHand[index];
+  if (!canPlay(card)) return;
+
+  discard.push(card);
+  playerHand.splice(index, 1);
+  updateDiscard();
+  renderPlayerHand();
+
+  if (playerHand.length === 0) {
+    setMessage("🎉 You Win! 🇫🇷 Great French numbers! 🎉");
+    return;
+  }
+  if (playerHand.length === 1 && !unoCalled) {
+    setTimeout(() => {
+      if (!unoCalled) {
+        setMessage("😤 You forgot to say UNO! Drawing 2 cards...");
+        drawCard(); drawCard();
+      }
+    }, 1500);
+  }
+
+  turn = "computer";
+  setMessage("Computer's turn...");
+  setTimeout(computerTurn, 1500);
+}
+
+function computerTurn() {
+  // Simple AI: play first playable card
+  for (let i = 0; i < playerHand.length + 7; i++) { // Computer has 7 initially + draws
+    let card = { color: colors[Math.floor(Math.random()*4)], number: Math.floor(Math.random()*10) };
+    if (Math.random() < 0.15) card = { color: "wild", number: null }; // 15% wild
+    if (canPlay(card)) {
+      discard.push(card);
+      updateDiscard();
+      setMessage("Computer played a card!");
+      if (Math.random() < 0.3) setTimeout(computerTurn, 1000); // sometimes play again
+      else endComputerTurn();
+      return;
+    }
+  }
+  // Draw if no play
+  setMessage("Computer draws a card...");
+  setTimeout(endComputerTurn, 1200);
+}
+
+function endComputerTurn() {
+  if (Math.random() < 0.1) { // 10% chance computer wins suddenly
+    setMessage("🤖 Computer wins! Better luck next time!");
+    return;
+  }
+  turn = "player";
+  setMessage("Your turn! 🇫🇷");
+  renderPlayerHand();
+}
+
+function drawCard() {
+  if (deck.length === 0) {
+    // Reshuffle discard into deck
+    const top = discard.pop();
+    deck = discard;
+    discard = [top];
+    shuffle(deck);
+  }
+  if (turn === "player") {
+    playerHand.push(deck.pop());
+    renderPlayerHand();
+    setMessage("You drew a card!");
+  }
+}
+
+function sayUno() {
+  unoCalled = true;
+  setMessage("🎯 UNO! Well done!");
+  document.getElementById("uno-btn").style.display = "none";
+}
+
+function updateComputerCount() {
+  document.getElementById("computer-count").textContent = 7 + Math.floor(Math.random()*3);
+}
+
+function setMessage(txt) {
+  document.getElementById("message").innerHTML = txt;
+}
+
+// Start the game
+startGame();
+</script>
+</body>
+</html>
